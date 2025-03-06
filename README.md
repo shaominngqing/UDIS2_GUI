@@ -14,6 +14,11 @@
 
 ---
 
+## 依赖安装
+```shell
+pip install -r requirements.txt
+```
+
 ## 版本详细说明
 
 ### 1.0 版本 [gui.py](gui.py)
