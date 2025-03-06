@@ -7,7 +7,7 @@ from PyQt6.QtWidgets import (
     QLineEdit, QFileDialog, QTextEdit, QMessageBox, QHBoxLayout,
     QScrollArea, QFrame, QSizePolicy
 )
-from PyQt6.QtGui import QPixmap, QScreen
+from PyQt6.QtGui import QPixmap
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 
 
@@ -29,23 +29,28 @@ class FusionThread(QThread):
 
     def run(self):
         try:
+            # 连接服务器
             self.ssh = self.connect_ssh()
             if not self.ssh:
                 self.finished.emit(False)
                 return
 
+            # 上传图片
             if not self.upload_images():
                 self.finished.emit(False)
                 return
 
+            # 处理变形并获取中间产物
             if not self.process_warp():
                 self.finished.emit(False)
                 return
 
+            # 处理融合并获取中间产物
             if not self.process_composition():
                 self.finished.emit(False)
                 return
 
+            # 下载最终结果
             final_path = self.download_result()
             if final_path:
                 self.result_ready.emit(final_path)
@@ -102,7 +107,7 @@ class FusionThread(QThread):
             if stdout.channel.recv_exit_status() != 0:
                 raise Exception(stderr.read().decode())
 
-            # 下载变形处理中间产物
+            # 下载变形中间产物
             intermediates = [
                 ("mask1", "autodl-tmp/UDIS-D/testing/mask1/000001.jpg"),
                 ("mask2", "autodl-tmp/UDIS-D/testing/mask2/000001.jpg"),
@@ -125,7 +130,7 @@ class FusionThread(QThread):
             if stdout.channel.recv_exit_status() != 0:
                 raise Exception(stderr.read().decode())
 
-            # 下载融合处理中间产物
+            # 下载融合中间产物
             intermediates = [
                 ("learn_mask1", "autodl-tmp/UDIS2-main/Composition/learn_mask1/000001.jpg"),
                 ("learn_mask2", "autodl-tmp/UDIS2-main/Composition/learn_mask2/000001.jpg")
@@ -166,6 +171,7 @@ class FusionThread(QThread):
 # ============================================================
 #                        主界面类
 # ============================================================
+
 class FusionApp(QWidget):
     def __init__(self):
         super().__init__()
@@ -175,9 +181,9 @@ class FusionApp(QWidget):
         self.setup_connections()
 
     def init_ui(self):
+        """初始化界面"""
         self.setWindowTitle("图像融合系统")
-        self.setGeometry(100, 100, 1000, 800)
-        self.center_window()
+        self.setGeometry(100, 100, 1400, 900)
 
         main_layout = QVBoxLayout()
 
@@ -197,10 +203,10 @@ class FusionApp(QWidget):
         server_layout.addWidget(self.txt_pwd)
         main_layout.addLayout(server_layout)
 
-        # 图片选择区域（修复1：添加对象名称）
+        # 图片选择区域
         img_layout = QHBoxLayout()
-        self.lbl_img1 = self.create_image_box("input1", "点击选择图片1")
-        self.lbl_img2 = self.create_image_box("input2", "点击选择图片2")
+        self.lbl_img1 = self.create_input_box("input1", "点击选择图片1")
+        self.lbl_img2 = self.create_input_box("input2", "点击选择图片2")
         img_layout.addWidget(self.lbl_img1)
         img_layout.addWidget(self.lbl_img2)
         main_layout.addLayout(img_layout)
@@ -211,111 +217,171 @@ class FusionApp(QWidget):
             QPushButton {
                 background-color: #2196F3;
                 color: white;
-                padding: 12px;
-                font-size: 16px;
-                border-radius: 5px;
+                padding: 15px 30px;
+                font-size: 18px;
+                border-radius: 8px;
+                margin: 10px;
             }
             QPushButton:disabled {
                 background-color: #BBDEFB;
             }
         """)
-        main_layout.addWidget(self.btn_start)
+        main_layout.addWidget(self.btn_start, alignment=Qt.AlignmentFlag.AlignCenter)
 
-        # 中间产物展示区（修复2：明确命名）
+        # 中间产物展示区
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
+        scroll.setMinimumHeight(500)
+        scroll.setStyleSheet("border: none;")
+
         content = QWidget()
         self.intermediate_layout = QVBoxLayout(content)
 
         # 变形处理产物
-        self.warp_group = self.create_group_box("变形处理中间产物",
-                                                ["mask1", "mask2", "warp1", "warp2"])
+        self.warp_group = self.create_intermediate_group("变形处理中间产物",
+                                                         ["mask1", "mask2", "warp1", "warp2"], 220)
+
         # 融合处理产物
-        self.comp_group = self.create_group_box("融合处理中间产物",
-                                                ["learn_mask1", "learn_mask2"])
-        # 最终结果（修复3：单独命名结果区域）
-        self.final_group = self.create_group_box("最终结果", ["final_result"])
-        self.final_label = self.final_group.findChild(QLabel, "final_result")
+        self.comp_group = self.create_intermediate_group("融合处理中间产物",
+                                                         ["learn_mask1", "learn_mask2"], 220)
+
+        # 最终结果
+        self.final_group = self.create_intermediate_group("最终结果", ["final_result"], 350)
+        self.final_label = self.findChild(QLabel, "final_result")
 
         self.intermediate_layout.addWidget(self.warp_group)
         self.intermediate_layout.addWidget(self.comp_group)
         self.intermediate_layout.addWidget(self.final_group)
+
         scroll.setWidget(content)
         main_layout.addWidget(scroll)
 
         # 日志区域
         self.log_area = QTextEdit()
+        self.log_area.setStyleSheet("""
+            QTextEdit {
+                background-color: #FAFAFA;
+                border: 1px solid #EEE;
+                padding: 10px;
+                font-family: monospace;
+            }
+        """)
         self.log_area.setReadOnly(True)
         main_layout.addWidget(self.log_area)
 
         self.setLayout(main_layout)
 
-    def center_window(self):
-        screen = QScreen.availableGeometry(QApplication.primaryScreen())  # 获取主屏幕几何信息
-        x = (screen.width() - self.width()) // 2
-        y = (screen.height() - self.height()) // 2
-        self.move(x, y)
-
-    def create_image_box(self, name, text):
-        """创建带名称的图片框"""
+    def create_input_box(self, name, prompt):
+        """创建输入图片框"""
         frame = QFrame()
         frame.setObjectName(f"frame_{name}")
         frame.setFrameStyle(QFrame.Shape.Box)
-        frame.setLineWidth(1)
-        frame.setStyleSheet("border: 2px dashed #666;")
+        frame.setLineWidth(2)
+        frame.setStyleSheet("""
+            QFrame {
+                border: 2px dashed #999;
+                border-radius: 10px;
+                background-color: #F8F8F8;
+            }
+        """)
         layout = QVBoxLayout(frame)
 
-        label = QLabel(text)
+        label = QLabel(prompt)
         label.setObjectName(name)
         label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        label.setMinimumSize(300, 300)
+        label.setMinimumSize(260, 260)
+        label.setStyleSheet("""
+            QLabel {
+                font-size: 16px;
+                color: #666;
+                qproperty-alignment: AlignCenter;
+            }
+        """)
 
         layout.addWidget(label)
         return frame
 
-    def create_group_box(self, title, items):
-        """创建带明确命名的分组框"""
+    def create_intermediate_group(self, title, items, size):
+        """创建中间产物分组框"""
         group = QFrame()
-        group.setFrameStyle(QFrame.Shape.Box)
+        group.setFrameStyle(QFrame.Shape.StyledPanel)
         layout = QHBoxLayout(group)
+        layout.setContentsMargins(10, 10, 10, 10)
 
-        layout.addWidget(QLabel(title + ":"))
+        title_label = QLabel(title)
+        title_label.setStyleSheet("""
+            QLabel {
+                font-weight: bold;
+                font-size: 16px;
+                color: #444;
+                padding: 5px;
+            }
+        """)
+        layout.addWidget(title_label)
+
         for item in items:
             frame = QFrame()
-            frame.setFrameStyle(QFrame.Shape.Box)
+            frame.setFrameStyle(QFrame.Shape.Panel)
             vbox = QVBoxLayout(frame)
+            vbox.setSpacing(5)
 
-            label = QLabel("等待生成...")
-            label.setObjectName(item)  # 设置对象名称
-            label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            label.setMinimumSize(150, 150)
-            label.setStyleSheet("background-color: #F5F5F5;")
+            # 图片标签
+            img_label = QLabel("等待生成...")
+            img_label.setObjectName(item)
+            img_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            img_label.setMinimumSize(size, size)
+            img_label.setStyleSheet(f"""
+                QLabel {{
+                    background-color: #FFF;
+                    border: 2px solid #DDD;
+                    border-radius: 8px;
+                    min-width: {size}px;
+                    min-height: {size}px;
+                }}
+            """)
 
-            title_label = QLabel(item)
+            # 标题标签
+            title_label = QLabel(item.replace("_", " ").title())
             title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            title_label.setStyleSheet("""
+                QLabel {
+                    color: #666;
+                    font-size: 14px;
+                }
+            """)
 
             vbox.addWidget(title_label)
-            vbox.addWidget(label)
+            vbox.addWidget(img_label)
             layout.addWidget(frame)
 
         return group
 
     def setup_connections(self):
+        """设置信号连接"""
         self.lbl_img1.mousePressEvent = lambda e: self.select_image(1)
         self.lbl_img2.mousePressEvent = lambda e: self.select_image(2)
         self.btn_start.clicked.connect(self.start_process)
 
     def select_image(self, index):
-        path, _ = QFileDialog.getOpenFileName(self, "选择图片", "", "图片文件 (*.jpg *.png)")
+        """选择图片"""
+        path, _ = QFileDialog.getOpenFileName(
+            self, "选择图片", "",
+            "图片文件 (*.jpg *.jpeg *.png)"
+        )
         if path:
             self.image_paths[index] = path
             label = self.findChild(QLabel, "input1" if index == 1 else "input2")
-            pixmap = QPixmap(path).scaled(300, 300, Qt.AspectRatioMode.KeepAspectRatio)
+            pixmap = QPixmap(path).scaled(
+                380, 380,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation
+            )
             label.setPixmap(pixmap)
             label.setText("")
             self.log(f"已选择图片{index}: {path.split('/')[-1]}")
 
     def start_process(self):
+        """启动处理流程"""
         if not all(self.image_paths.values()):
             QMessageBox.warning(self, "提示", "请先选择两张图片")
             return
@@ -338,50 +404,57 @@ class FusionApp(QWidget):
 
         self.btn_start.setEnabled(False)
         self.btn_start.setText("处理中...")
-        self.clear_display()
 
         self.thread.start()
 
     def update_intermediate(self, img_type, path):
-        """修复中间产物更新逻辑"""
+        """更新中间产物显示"""
         target_label = self.findChild(QLabel, img_type)
         if target_label:
-            pixmap = QPixmap(path).scaled(150, 150, Qt.AspectRatioMode.KeepAspectRatio)
+            pixmap = QPixmap(path).scaled(
+                target_label.width(),
+                target_label.height(),
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation
+            )
             target_label.setPixmap(pixmap)
-            target_label.setText("")
+            target_label.setStyleSheet("background-color: #FFF;")
 
     def show_final_result(self, path):
-        """修复最终结果展示"""
+        """显示最终结果"""
+        self.final_label = self.findChild(QLabel, "final_result")
         if self.final_label:
-            pixmap = QPixmap(path).scaled(300, 300, Qt.AspectRatioMode.KeepAspectRatio)
+            pixmap = QPixmap(path).scaled(
+                340, 340,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation
+            )
             self.final_label.setPixmap(pixmap)
-            self.final_label.setText("")
+            self.final_label.setStyleSheet("""
+                QLabel {
+                    background-color: #FFF;
+                    border: 2px solid #2196F3;
+                    border-radius: 10px;
+                }
+            """)
 
     def handle_process_finished(self, success):
+        """处理完成回调"""
         self.btn_start.setEnabled(True)
         self.btn_start.setText("开始融合处理")
         if not success:
             QMessageBox.critical(self, "错误", "处理过程中发生错误，请查看日志")
 
     def log(self, message):
+        """记录日志"""
         timestamp = time.strftime("%H:%M:%S")
         self.log_area.append(f"[{timestamp}] {message}")
-
-    def clear_display(self):
-        """修复：只清空中间产物和最终结果"""
-        # 清空中间产物
-        for name in ["mask1", "mask2", "warp1", "warp2", "learn_mask1", "learn_mask2"]:
-            label = self.findChild(QLabel, name)
-            if label:
-                label.setPixmap(QPixmap())
-                label.setText("等待生成...")
-
-        # 清空最终结果
-        if self.final_label:
-            self.final_label.setPixmap(QPixmap())
-            self.final_label.setText("等待生成...")
+        self.log_area.verticalScrollBar().setValue(
+            self.log_area.verticalScrollBar().maximum()
+        )
 
     def closeEvent(self, event):
+        """关闭窗口事件"""
         if self.thread and self.thread.isRunning():
             self.thread.terminate()
             self.thread.wait()
