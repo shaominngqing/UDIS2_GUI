@@ -100,6 +100,16 @@ class FusionThread(QThread):
     def process_warp(self):
         """执行变形处理"""
         try:
+            self.progress.emit("清理工作空间...")
+            self.progress.emit("删除 ~/autodl-tmp/UDIS-D/testing/warp1/*")
+            self.ssh.exec_command("rm -rf ~/autodl-tmp/UDIS-D/testing/warp1/*")
+            self.progress.emit("删除 ~/autodl-tmp/UDIS-D/testing/warp1/*")
+            self.ssh.exec_command("rm -rf ~/autodl-tmp/UDIS-D/testing/warp2/*")
+            self.progress.emit("删除 ~/autodl-tmp/UDIS-D/testing/mask1/*")
+            self.ssh.exec_command("rm -rf ~/autodl-tmp/UDIS-D/testing/mask1/*")
+            self.progress.emit("删除 ~/autodl-tmp/UDIS-D/testing/mask2/*")
+            self.ssh.exec_command("rm -rf ~/autodl-tmp/UDIS-D/testing/mask2/*")
+
             self.progress.emit("开始图像变形处理...")
             _, stdout, stderr = self.ssh.exec_command(
                 "/root/miniconda3/bin/python ~/autodl-tmp/UDIS2-main/Warp/Codes/test_output.py"
@@ -109,8 +119,6 @@ class FusionThread(QThread):
 
             # 下载变形中间产物
             intermediates = [
-                ("mask1", "autodl-tmp/UDIS-D/testing/mask1/000001.jpg"),
-                ("mask2", "autodl-tmp/UDIS-D/testing/mask2/000001.jpg"),
                 ("warp1", "autodl-tmp/UDIS-D/testing/warp1/000001.jpg"),
                 ("warp2", "autodl-tmp/UDIS-D/testing/warp2/000001.jpg")
             ]
@@ -123,6 +131,12 @@ class FusionThread(QThread):
     def process_composition(self):
         """执行融合处理"""
         try:
+            self.progress.emit("清理工作空间...")
+            self.progress.emit("删除 ~/autodl-tmp/UDIS2-main/Composition/learn_mask1/*")
+            self.ssh.exec_command("rm -rf ~/autodl-tmp/UDIS2-main/Composition/learn_mask1/*")
+            self.progress.emit("删除 ~/autodl-tmp/UDIS2-main/Composition/learn_mask2/*")
+            self.ssh.exec_command("rm -rf ~/autodl-tmp/UDIS2-main/Composition/learn_mask2/*")
+
             self.progress.emit("开始图像融合处理...")
             _, stdout, stderr = self.ssh.exec_command(
                 "/root/miniconda3/bin/python ~/autodl-tmp/UDIS2-main/Composition/Codes/test.py"
@@ -183,7 +197,7 @@ class FusionApp(QWidget):
     def init_ui(self):
         """初始化界面"""
         self.setWindowTitle("图像融合系统")
-        self.setGeometry(100, 100, 1400, 900)
+        self.setGeometry(100, 100, 900, 500)
 
         main_layout = QVBoxLayout()
 
@@ -218,7 +232,7 @@ class FusionApp(QWidget):
                 background-color: #2196F3;
                 color: white;
                 padding: 15px 30px;
-                font-size: 18px;
+                font-size: 14px;
                 border-radius: 8px;
                 margin: 10px;
             }
@@ -231,7 +245,7 @@ class FusionApp(QWidget):
         # 中间产物展示区
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
-        scroll.setMinimumHeight(500)
+        scroll.setMinimumHeight(200)
         scroll.setStyleSheet("border: none;")
 
         content = QWidget()
@@ -239,14 +253,14 @@ class FusionApp(QWidget):
 
         # 变形处理产物
         self.warp_group = self.create_intermediate_group("变形处理中间产物",
-                                                         ["mask1", "mask2", "warp1", "warp2"], 220)
+                                                         ["warp1", "warp2"], 220)
 
         # 融合处理产物
         self.comp_group = self.create_intermediate_group("融合处理中间产物",
-                                                         ["learn_mask1", "learn_mask2"], 220)
+                                                         ["learn_mask1", "learn_mask2"], 110)
 
         # 最终结果
-        self.final_group = self.create_intermediate_group("最终结果", ["final_result"], 350)
+        self.final_group = self.create_intermediate_group("最终结果", ["final_result"], 175)
         self.final_label = self.findChild(QLabel, "final_result")
 
         self.intermediate_layout.addWidget(self.warp_group)
@@ -289,7 +303,7 @@ class FusionApp(QWidget):
         label = QLabel(prompt)
         label.setObjectName(name)
         label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        label.setMinimumSize(260, 260)
+        label.setMinimumSize(120, 120)
         label.setStyleSheet("""
             QLabel {
                 font-size: 16px;
@@ -372,7 +386,7 @@ class FusionApp(QWidget):
             self.image_paths[index] = path
             label = self.findChild(QLabel, "input1" if index == 1 else "input2")
             pixmap = QPixmap(path).scaled(
-                380, 380,
+                150, 150,
                 Qt.AspectRatioMode.KeepAspectRatio,
                 Qt.TransformationMode.SmoothTransformation
             )
@@ -425,7 +439,7 @@ class FusionApp(QWidget):
         self.final_label = self.findChild(QLabel, "final_result")
         if self.final_label:
             pixmap = QPixmap(path).scaled(
-                340, 340,
+                150, 150,
                 Qt.AspectRatioMode.KeepAspectRatio,
                 Qt.TransformationMode.SmoothTransformation
             )
