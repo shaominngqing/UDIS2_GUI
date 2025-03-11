@@ -116,7 +116,7 @@ class FusionThread(QThread):
             )
             if stdout.channel.recv_exit_status() != 0:
                 raise Exception(stderr.read().decode())
-
+            self.progress.emit(stdout.read().decode())
             # 下载变形中间产物
             intermediates = [
                 ("warp1", "autodl-tmp/UDIS-D/testing/warp1/000001.jpg"),
@@ -139,11 +139,11 @@ class FusionThread(QThread):
 
             self.progress.emit("开始图像融合处理...")
             _, stdout, stderr = self.ssh.exec_command(
-                "/root/miniconda3/bin/python ~/autodl-tmp/UDIS2-main/Composition/Codes/test.py"
+                "cd autodl-tmp/UDIS2-main/Composition/Codes && /root/miniconda3/bin/python test.py"
             )
             if stdout.channel.recv_exit_status() != 0:
                 raise Exception(stderr.read().decode())
-
+            self.progress.emit(stdout.read().decode())
             # 下载融合中间产物
             intermediates = [
                 ("learn_mask1", "autodl-tmp/UDIS2-main/Composition/learn_mask1/000001.jpg"),
@@ -204,7 +204,7 @@ class FusionApp(QWidget):
         # 服务器信息输入
         server_layout = QHBoxLayout()
         self.txt_host = QLineEdit("connect.cqa1.seetacloud.com")
-        self.txt_port = QLineEdit("31041")
+        self.txt_port = QLineEdit("18863")
         self.txt_pwd = QLineEdit()
         self.txt_pwd.setPlaceholderText("服务器密码")
         self.txt_pwd.setEchoMode(QLineEdit.EchoMode.Password)
