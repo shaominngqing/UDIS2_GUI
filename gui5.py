@@ -5,16 +5,14 @@ from scp import SCPClient
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QLabel, QPushButton,
     QLineEdit, QFileDialog, QTextEdit, QMessageBox, QHBoxLayout,
-    QScrollArea, QFrame, QSizePolicy
+    QScrollArea, QFrame, QSizePolicy, QSpacerItem
 )
-from PyQt6.QtGui import QPixmap
+from PyQt6.QtGui import QPixmap, QFont, QCursor
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
-
 
 # ============================================================
 #                        线程工作类
 # ============================================================
-
 class FusionThread(QThread):
     progress = pyqtSignal(str)
     result_ready = pyqtSignal(str)
@@ -103,7 +101,7 @@ class FusionThread(QThread):
             self.progress.emit("清理工作空间...")
             self.progress.emit("删除 ~/autodl-tmp/UDIS-D/testing/warp1/*")
             self.ssh.exec_command("rm -rf ~/autodl-tmp/UDIS-D/testing/warp1/*")
-            self.progress.emit("删除 ~/autodl-tmp/UDIS-D/testing/warp1/*")
+            self.progress.emit("删除 ~/autodl-tmp/UDIS-D/testing/warp2/*")
             self.ssh.exec_command("rm -rf ~/autodl-tmp/UDIS-D/testing/warp2/*")
             self.progress.emit("删除 ~/autodl-tmp/UDIS-D/testing/mask1/*")
             self.ssh.exec_command("rm -rf ~/autodl-tmp/UDIS-D/testing/mask1/*")
@@ -181,11 +179,9 @@ class FusionThread(QThread):
             self.progress.emit(f"❌ 下载最终结果失败: {str(e)}")
             return None
 
-
 # ============================================================
 #                        主界面类
 # ============================================================
-
 class FusionApp(QWidget):
     def __init__(self):
         super().__init__()
@@ -197,87 +193,138 @@ class FusionApp(QWidget):
     def init_ui(self):
         """初始化界面"""
         self.setWindowTitle("图像融合系统")
-        self.setGeometry(100, 100, 900, 500)
+        self.setGeometry(0, 0, 1920, 1000)
 
         main_layout = QVBoxLayout()
+        main_layout.setContentsMargins(20, 20, 20, 20)
+        main_layout.setSpacing(15)
 
-        # 服务器信息输入
-        server_layout = QHBoxLayout()
+        # ================== 服务器信息 ==================
+        server_frame = QFrame()
+        server_frame.setStyleSheet("""
+            QFrame {
+                background-color: #f0f0f0;
+                border-radius: 10px;
+            
+            }
+        """)
+        server_layout = QHBoxLayout(server_frame)
+        server_layout.setSpacing(10)
+
         self.txt_host = QLineEdit("connect.cqa1.seetacloud.com")
         self.txt_port = QLineEdit("18863")
         self.txt_pwd = QLineEdit()
         self.txt_pwd.setPlaceholderText("服务器密码")
         self.txt_pwd.setEchoMode(QLineEdit.EchoMode.Password)
-
+        for widget in [self.txt_host, self.txt_port, self.txt_pwd]:
+            widget.setMinimumHeight(30)
+            widget.setStyleSheet("""
+                QLineEdit {
+                    border: 1px solid #ccc;
+                    border-radius: 5px;
+                    padding: 5px;
+                }
+            """)
         server_layout.addWidget(QLabel("地址:"))
         server_layout.addWidget(self.txt_host)
         server_layout.addWidget(QLabel("端口:"))
         server_layout.addWidget(self.txt_port)
         server_layout.addWidget(QLabel("密码:"))
         server_layout.addWidget(self.txt_pwd)
-        main_layout.addLayout(server_layout)
+        main_layout.addWidget(server_frame)
 
-        # 图片选择区域
-        img_layout = QHBoxLayout()
-        self.lbl_img1 = self.create_input_box("input1", "点击选择图片1")
-        self.lbl_img2 = self.create_input_box("input2", "点击选择图片2")
-        img_layout.addWidget(self.lbl_img1)
-        img_layout.addWidget(self.lbl_img2)
-        main_layout.addLayout(img_layout)
-
-        # 操作按钮
+        # ================== 操作按钮 ==================
+        btn_layout = QHBoxLayout()
+        btn_layout.addStretch(1)
         self.btn_start = QPushButton("开始融合处理")
+        self.btn_start.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         self.btn_start.setStyleSheet("""
             QPushButton {
                 background-color: #2196F3;
                 color: white;
-                padding: 15px 30px;
-                font-size: 14px;
+                padding: 12px 25px;
+                font-size: 16px;
                 border-radius: 8px;
-                margin: 10px;
+            }
+            QPushButton:hover {
+                background-color: #1976D2;
             }
             QPushButton:disabled {
                 background-color: #BBDEFB;
             }
         """)
-        main_layout.addWidget(self.btn_start, alignment=Qt.AlignmentFlag.AlignCenter)
+        btn_layout.addWidget(self.btn_start)
+        btn_layout.addStretch(1)
+        main_layout.addLayout(btn_layout)
 
-        # 中间产物展示区
+        # ================== 主内容区域（左右分栏） ==================
+        content_layout = QHBoxLayout()
+        content_layout.setSpacing(20)
+
+        # ------------- 左侧：图像选择与最终结果 -------------
+        left_panel = QVBoxLayout()
+        left_panel.setSpacing(15)
+
+        # 图像选择区域
+        img_frame = QFrame()
+        img_frame.setStyleSheet("""
+            QFrame {
+                background-color: #fafafa;
+                border-radius: 10px;
+                padding: 10px;
+            }
+        """)
+        img_layout = QHBoxLayout(img_frame)
+        img_layout.setSpacing(20)
+        self.lbl_img1 = self.create_input_box("input1", "点击选择图片1")
+        self.lbl_img2 = self.create_input_box("input2", "点击选择图片2")
+        img_layout.addWidget(self.lbl_img1)
+        img_layout.addWidget(self.lbl_img2)
+        left_panel.addWidget(img_frame)
+
+        # 最终结果展示区域
+        self.final_group = self.create_intermediate_group("最终结果", ["final_result"], 300)
+        self.final_label = self.findChild(QLabel, "final_result")
+        left_panel.addWidget(self.final_group)
+
+        content_layout.addLayout(left_panel, 1)
+
+        # ------------- 右侧：中间过程展示 -------------
+        right_panel = QVBoxLayout()
+        right_panel.setSpacing(15)
+
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
-        scroll.setMinimumHeight(200)
+        scroll.setMinimumWidth(400)
         scroll.setStyleSheet("border: none;")
+        intermediate_content = QWidget()
+        intermediate_layout = QVBoxLayout(intermediate_content)
+        intermediate_layout.setSpacing(15)
+        intermediate_layout.setContentsMargins(15, 15, 15, 15)
 
-        content = QWidget()
-        self.intermediate_layout = QVBoxLayout(content)
+        # 变形处理中间产物
+        self.warp_group = self.create_intermediate_group("配准阶段",
+                                                         ["warp1", "warp2"], 200)
+        # 融合处理中间产物
+        self.comp_group = self.create_intermediate_group("合成阶段",
+                                                         ["learn_mask1", "learn_mask2"], 200)
+        intermediate_layout.addWidget(self.warp_group)
+        intermediate_layout.addWidget(self.comp_group)
+        scroll.setWidget(intermediate_content)
+        right_panel.addWidget(scroll)
 
-        # 变形处理产物
-        self.warp_group = self.create_intermediate_group("变形处理中间产物",
-                                                         ["warp1", "warp2"], 220)
+        content_layout.addLayout(right_panel, 1)
+        main_layout.addLayout(content_layout)
 
-        # 融合处理产物
-        self.comp_group = self.create_intermediate_group("融合处理中间产物",
-                                                         ["learn_mask1", "learn_mask2"], 110)
-
-        # 最终结果
-        self.final_group = self.create_intermediate_group("最终结果", ["final_result"], 175)
-        self.final_label = self.findChild(QLabel, "final_result")
-
-        self.intermediate_layout.addWidget(self.warp_group)
-        self.intermediate_layout.addWidget(self.comp_group)
-        self.intermediate_layout.addWidget(self.final_group)
-
-        scroll.setWidget(content)
-        main_layout.addWidget(scroll)
-
-        # 日志区域
+        # ================== 日志区域 ==================
         self.log_area = QTextEdit()
         self.log_area.setStyleSheet("""
             QTextEdit {
-                background-color: #FAFAFA;
-                border: 1px solid #EEE;
+                background-color: #fff;
+                border: 1px solid #ddd;
                 padding: 10px;
-                font-family: monospace;
+                font-family: Consolas, monospace;
+                font-size: 13px;
             }
         """)
         self.log_area.setReadOnly(True)
@@ -293,51 +340,63 @@ class FusionApp(QWidget):
         frame.setLineWidth(2)
         frame.setStyleSheet("""
             QFrame {
-                border: 2px dashed #999;
+                border: 2px dashed #aaa;
                 border-radius: 10px;
-                background-color: #F8F8F8;
+                background-color: #fff;
             }
         """)
         layout = QVBoxLayout(frame)
-
+        layout.setContentsMargins(10, 10, 10, 10)
         label = QLabel(prompt)
         label.setObjectName(name)
         label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        label.setMinimumSize(120, 120)
+        label.setMinimumSize(150, 150)
         label.setStyleSheet("""
             QLabel {
                 font-size: 16px;
-                color: #666;
-                qproperty-alignment: AlignCenter;
+                color: #888;
             }
         """)
-
         layout.addWidget(label)
         return frame
 
     def create_intermediate_group(self, title, items, size):
         """创建中间产物分组框"""
         group = QFrame()
-        group.setFrameStyle(QFrame.Shape.StyledPanel)
+        group.setStyleSheet("""
+            QFrame {
+                background-color: #f7f7f7;
+                border-radius: 8px;
+                padding: 10px;
+            }
+        """)
         layout = QHBoxLayout(group)
+        layout.setSpacing(20)
         layout.setContentsMargins(10, 10, 10, 10)
 
         title_label = QLabel(title)
         title_label.setStyleSheet("""
             QLabel {
                 font-weight: bold;
-                font-size: 16px;
-                color: #444;
-                padding: 5px;
+                font-size: 18px;
+                color: #555;
             }
         """)
+        title_label.setFixedWidth(100)
         layout.addWidget(title_label)
 
         for item in items:
             frame = QFrame()
-            frame.setFrameStyle(QFrame.Shape.Panel)
+            frame.setStyleSheet("""
+                QFrame {
+                    background-color: #fff;
+                    border: 1px solid #ddd;
+                    border-radius: 8px;
+                }
+            """)
             vbox = QVBoxLayout(frame)
             vbox.setSpacing(5)
+            vbox.setContentsMargins(5, 5, 5, 5)
 
             # 图片标签
             img_label = QLabel("等待生成...")
@@ -347,7 +406,7 @@ class FusionApp(QWidget):
             img_label.setStyleSheet(f"""
                 QLabel {{
                     background-color: #FFF;
-                    border: 2px solid #DDD;
+                    border: 2px solid #EEE;
                     border-radius: 8px;
                     min-width: {size}px;
                     min-height: {size}px;
@@ -355,19 +414,20 @@ class FusionApp(QWidget):
             """)
 
             # 标题标签
-            title_label = QLabel(item.replace("_", " ").title())
-            title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            title_label.setStyleSheet("""
+            sub_label = QLabel(item.replace("_", " ").title())
+            sub_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            sub_label.setStyleSheet("""
                 QLabel {
                     color: #666;
                     font-size: 14px;
                 }
             """)
-
-            vbox.addWidget(title_label)
+            vbox.addWidget(sub_label)
             vbox.addWidget(img_label)
             layout.addWidget(frame)
 
+        # 增加弹性间距
+        layout.addItem(QSpacerItem(20, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum))
         return group
 
     def setup_connections(self):
@@ -473,7 +533,6 @@ class FusionApp(QWidget):
             self.thread.terminate()
             self.thread.wait()
         event.accept()
-
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
