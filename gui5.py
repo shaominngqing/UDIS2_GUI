@@ -7,7 +7,7 @@ from PyQt6.QtWidgets import (
     QLineEdit, QFileDialog, QTextEdit, QMessageBox, QHBoxLayout,
     QScrollArea, QFrame, QSizePolicy, QSpacerItem
 )
-from PyQt6.QtGui import QPixmap, QFont, QCursor
+from PyQt6.QtGui import QPixmap, QCursor
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 
 # ============================================================
@@ -79,12 +79,10 @@ class FusionThread(QThread):
         """上传原始图片"""
         try:
             with SCPClient(self.ssh.get_transport()) as scp:
-                # 上传input1
                 self.progress.emit("上传input1图片...")
                 self.ssh.exec_command("rm -rf ~/autodl-tmp/UDIS-D/testing/input1/*")
                 scp.put(self.image_paths[1], "~/autodl-tmp/UDIS-D/testing/input1/000001.jpg")
 
-                # 上传input2
                 self.progress.emit("上传input2图片...")
                 self.ssh.exec_command("rm -rf ~/autodl-tmp/UDIS-D/testing/input2/*")
                 scp.put(self.image_paths[2], "~/autodl-tmp/UDIS-D/testing/input2/000001.jpg")
@@ -193,24 +191,27 @@ class FusionApp(QWidget):
     def init_ui(self):
         """初始化界面"""
         self.setWindowTitle("图像融合系统")
-        self.setGeometry(0, 0, 1920, 1000)
+        self.setGeometry(0, 0, 1920, 900)
 
-        main_layout = QVBoxLayout()
+        # 主布局：水平布局，分为左侧内容（服务器信息、操作按钮、图片选择/结果和推理过程）和右侧控制台
+        main_layout = QHBoxLayout()
         main_layout.setContentsMargins(20, 20, 20, 20)
         main_layout.setSpacing(15)
 
-        # ================== 服务器信息 ==================
+        # 左侧整体内容（包含上部服务器信息及操作按钮，下部左右分栏）
+        left_content = QVBoxLayout()
+        left_content.setSpacing(15)
+
+        # 服务器信息区域
         server_frame = QFrame()
         server_frame.setStyleSheet("""
             QFrame {
                 background-color: #f0f0f0;
                 border-radius: 10px;
-            
             }
         """)
         server_layout = QHBoxLayout(server_frame)
         server_layout.setSpacing(10)
-
         self.txt_host = QLineEdit("connect.cqa1.seetacloud.com")
         self.txt_port = QLineEdit("18863")
         self.txt_pwd = QLineEdit()
@@ -231,9 +232,9 @@ class FusionApp(QWidget):
         server_layout.addWidget(self.txt_port)
         server_layout.addWidget(QLabel("密码:"))
         server_layout.addWidget(self.txt_pwd)
-        main_layout.addWidget(server_frame)
+        left_content.addWidget(server_frame)
 
-        # ================== 操作按钮 ==================
+        # 操作按钮区域
         btn_layout = QHBoxLayout()
         btn_layout.addStretch(1)
         self.btn_start = QPushButton("开始融合处理")
@@ -255,17 +256,21 @@ class FusionApp(QWidget):
         """)
         btn_layout.addWidget(self.btn_start)
         btn_layout.addStretch(1)
-        main_layout.addLayout(btn_layout)
+        left_content.addLayout(btn_layout)
 
-        # ================== 主内容区域（左右分栏） ==================
-        content_layout = QHBoxLayout()
-        content_layout.setSpacing(20)
+        # 下部内容：左右分栏（左边固定宽度640：图片选择和结果展示；右边：推理过程）
+        lower_layout = QHBoxLayout()
+        lower_layout.setSpacing(20)
 
-        # ------------- 左侧：图像选择与最终结果 -------------
+        # 左边：图片选择和结果展示区域，固定宽度 640
         left_panel = QVBoxLayout()
         left_panel.setSpacing(15)
+        # 固定宽度
+        left_widget = QWidget()
+        left_widget.setLayout(left_panel)
+        left_widget.setFixedWidth(640)
 
-        # 图像选择区域
+        # 上部：图片选择区域
         img_frame = QFrame()
         img_frame.setStyleSheet("""
             QFrame {
@@ -282,17 +287,14 @@ class FusionApp(QWidget):
         img_layout.addWidget(self.lbl_img2)
         left_panel.addWidget(img_frame)
 
-        # 最终结果展示区域
-        self.final_group = self.create_intermediate_group("最终结果", ["final_result"], 300)
+        # 下部：最终结果展示区域
+        self.final_group = self.create_intermediate_group("最终结果", ["final_result"], 400)
         self.final_label = self.findChild(QLabel, "final_result")
         left_panel.addWidget(self.final_group)
 
-        content_layout.addLayout(left_panel, 1)
-
-        # ------------- 右侧：中间过程展示 -------------
-        right_panel = QVBoxLayout()
-        right_panel.setSpacing(15)
-
+        # 右边：推理过程展示区域（保持原有布局）
+        mid_panel = QVBoxLayout()
+        mid_panel.setSpacing(15)
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setMinimumWidth(400)
@@ -303,20 +305,33 @@ class FusionApp(QWidget):
         intermediate_layout.setContentsMargins(15, 15, 15, 15)
 
         # 变形处理中间产物
-        self.warp_group = self.create_intermediate_group("配准阶段",
-                                                         ["warp1", "warp2"], 200)
+        self.warp_group = self.create_intermediate_group("配准阶段", ["warp1", "warp2"], 240)
         # 融合处理中间产物
-        self.comp_group = self.create_intermediate_group("合成阶段",
-                                                         ["learn_mask1", "learn_mask2"], 200)
+        self.comp_group = self.create_intermediate_group("合成阶段", ["learn_mask1", "learn_mask2"], 240)
         intermediate_layout.addWidget(self.warp_group)
         intermediate_layout.addWidget(self.comp_group)
         scroll.setWidget(intermediate_content)
-        right_panel.addWidget(scroll)
+        mid_panel.addWidget(scroll)
 
-        content_layout.addLayout(right_panel, 1)
-        main_layout.addLayout(content_layout)
+        lower_layout.addWidget(left_widget)
+        lower_layout.addLayout(mid_panel)
 
-        # ================== 日志区域 ==================
+        left_content.addLayout(lower_layout)
+        main_layout.addLayout(left_content, 3)
+
+        # 右侧：控制台（日志输出区域）
+        console_layout = QVBoxLayout()
+        console_layout.setSpacing(5)
+        # 上部标签：日志输出区域
+        console_title = QLabel("日志输出区域")
+        console_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        console_title.setStyleSheet("""
+            QLabel {
+                font-size: 16px;
+                font-weight: bold;
+            }
+        """)
+        console_layout.addWidget(console_title)
         self.log_area = QTextEdit()
         self.log_area.setStyleSheet("""
             QTextEdit {
@@ -328,12 +343,16 @@ class FusionApp(QWidget):
             }
         """)
         self.log_area.setReadOnly(True)
-        main_layout.addWidget(self.log_area)
+        console_layout.addWidget(self.log_area)
+        self.console_widget = QWidget()
+        self.console_widget.setLayout(console_layout)
+        self.console_widget.setFixedWidth(400)
+        main_layout.addWidget(self.console_widget, 0)
 
         self.setLayout(main_layout)
 
     def create_input_box(self, name, prompt):
-        """创建输入图片框"""
+        """创建输入图片框，固定尺寸230×230"""
         frame = QFrame()
         frame.setObjectName(f"frame_{name}")
         frame.setFrameStyle(QFrame.Shape.Box)
@@ -350,7 +369,8 @@ class FusionApp(QWidget):
         label = QLabel(prompt)
         label.setObjectName(name)
         label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        label.setMinimumSize(150, 150)
+        label.setMinimumSize(230, 230)
+        label.setMaximumSize(230, 230)
         label.setStyleSheet("""
             QLabel {
                 font-size: 16px;
@@ -398,11 +418,11 @@ class FusionApp(QWidget):
             vbox.setSpacing(5)
             vbox.setContentsMargins(5, 5, 5, 5)
 
-            # 图片标签
             img_label = QLabel("等待生成...")
             img_label.setObjectName(item)
             img_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
             img_label.setMinimumSize(size, size)
+            img_label.setMaximumSize(size, size)
             img_label.setStyleSheet(f"""
                 QLabel {{
                     background-color: #FFF;
@@ -412,8 +432,6 @@ class FusionApp(QWidget):
                     min-height: {size}px;
                 }}
             """)
-
-            # 标题标签
             sub_label = QLabel(item.replace("_", " ").title())
             sub_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
             sub_label.setStyleSheet("""
@@ -426,7 +444,6 @@ class FusionApp(QWidget):
             vbox.addWidget(img_label)
             layout.addWidget(frame)
 
-        # 增加弹性间距
         layout.addItem(QSpacerItem(20, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum))
         return group
 
@@ -446,7 +463,7 @@ class FusionApp(QWidget):
             self.image_paths[index] = path
             label = self.findChild(QLabel, "input1" if index == 1 else "input2")
             pixmap = QPixmap(path).scaled(
-                150, 150,
+                230, 230,
                 Qt.AspectRatioMode.KeepAspectRatio,
                 Qt.TransformationMode.SmoothTransformation
             )
@@ -499,7 +516,7 @@ class FusionApp(QWidget):
         self.final_label = self.findChild(QLabel, "final_result")
         if self.final_label:
             pixmap = QPixmap(path).scaled(
-                150, 150,
+                380, 380,
                 Qt.AspectRatioMode.KeepAspectRatio,
                 Qt.TransformationMode.SmoothTransformation
             )
